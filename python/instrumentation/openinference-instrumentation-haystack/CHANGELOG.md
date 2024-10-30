@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.11...python-openinference-instrumentation-haystack-v0.1.12) (2024-08-26)
+
+
+### Bug Fixes
+
+* **haystack:** safely get embedding model name ([#965](https://github.com/Arize-ai/openinference/issues/965)) ([3a9286b](https://github.com/Arize-ai/openinference/commit/3a9286b64d62d289d2cbaacb5672e01f4fc6fa3a))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.10...python-openinference-instrumentation-haystack-v0.1.11) (2024-08-23)
+
+
+### Bug Fixes
+
+* **haystack:** remove remaining haystack import ([#961](https://github.com/Arize-ai/openinference/issues/961)) ([fe62e3f](https://github.com/Arize-ai/openinference/commit/fe62e3f23c31f88ba99ddab2ca6b453677e7dd31))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.9...python-openinference-instrumentation-haystack-v0.1.10) (2024-08-23)
+
+
+### Bug Fixes
+
+* **haystack:** ensure haystack is not a runtime dependency ([#959](https://github.com/Arize-ai/openinference/issues/959)) ([c06813c](https://github.com/Arize-ai/openinference/commit/c06813c709331b76b5d65400eca337510d1e7ed3))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.8...python-openinference-instrumentation-haystack-v0.1.9) (2024-08-16)
+
+
+### Bug Fixes
+
+* **haystack:** ensure important attributes such as span kind are not lost ([#917](https://github.com/Arize-ai/openinference/issues/917)) ([963ba4a](https://github.com/Arize-ai/openinference/commit/963ba4acf8cc7eaad4a4f780c5e50810fb876c8a))
+* **haystack:** improve heuristic for identifying component type ([#919](https://github.com/Arize-ai/openinference/issues/919)) ([bdfbbdb](https://github.com/Arize-ai/openinference/commit/bdfbbdb9c464ec0c2b730d7d70692ad346ce09f0))
+* **haystack:** improve span names and mask output embeddings ([#903](https://github.com/Arize-ai/openinference/issues/903)) ([7c754f3](https://github.com/Arize-ai/openinference/commit/7c754f340982d678e9362e4da82594589e98cba7))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.7...python-openinference-instrumentation-haystack-v0.1.8) (2024-08-15)
 
 

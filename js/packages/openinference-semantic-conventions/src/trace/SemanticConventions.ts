@@ -32,6 +32,7 @@ export const LLMAttributePostfixes = {
   prompts: "prompts",
   prompt_template: "prompt_template",
   function_call: "function_call",
+  tools: "tools",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -62,6 +63,7 @@ export const ToolAttributePostfixes = {
   name: "name",
   description: "description",
   parameters: "parameters",
+  json_schema: "json_schema",
 } as const;
 
 export const MessageAttributePostfixes = {
@@ -156,6 +158,17 @@ export const LLM_OUTPUT_MESSAGES =
  */
 export const LLM_MODEL_NAME =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.model_name}` as const;
+
+/**
+ * The provider of the inferences. E.g. the cloud provider
+ */
+export const LLM_PROVIDER =
+  `${SemanticAttributePrefixes.llm}.provider` as const;
+
+/**
+ * The AI product as identified by the client or server
+ */
+export const LLM_SYSTEM = `${SemanticAttributePrefixes.llm}.system` as const;
 
 /** Token count for the completion by the llm */
 export const LLM_TOKEN_COUNT_COMPLETION =
@@ -308,6 +321,12 @@ export const LLM_FUNCTION_CALL =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.function_call}` as const;
 
 /**
+ * List of tools that are advertised to the LLM to be able to call
+ */
+export const LLM_TOOLS =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.tools}` as const;
+
+/**
  * The name of a tool
  */
 export const TOOL_NAME =
@@ -324,6 +343,13 @@ export const TOOL_DESCRIPTION =
  */
 export const TOOL_PARAMETERS =
   `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.parameters}` as const;
+
+/**
+ * The json schema of a tool input, It is RECOMMENDED that this be in the
+ * OpenAI tool calling format: https://platform.openai.com/docs/assistants/tools
+ */
+export const TOOL_JSON_SCHEMA =
+  `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.json_schema}` as const;
 
 /**
  * The session id of a trace. Used to correlate spans in a single session.
@@ -398,6 +424,9 @@ export const SemanticConventions = {
   LLM_TOKEN_COUNT_COMPLETION,
   LLM_TOKEN_COUNT_PROMPT,
   LLM_TOKEN_COUNT_TOTAL,
+  LLM_SYSTEM,
+  LLM_PROVIDER,
+  LLM_TOOLS,
   MESSAGE_ROLE,
   MESSAGE_NAME,
   MESSAGE_TOOL_CALLS,
@@ -421,6 +450,7 @@ export const SemanticConventions = {
   TOOL_DESCRIPTION,
   TOOL_NAME,
   TOOL_PARAMETERS,
+  TOOL_JSON_SCHEMA,
   PROMPT_TEMPLATE_VARIABLES,
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VERSION,
@@ -453,4 +483,23 @@ export enum OpenInferenceSpanKind {
 export enum MimeType {
   TEXT = "text/plain",
   JSON = "application/json",
+}
+
+export enum LLMSystem {
+  OPENAI = "openai",
+  ANTHROPIC = "anthropic",
+  MISTRALAI = "mistralai",
+  COHERE = "cohere",
+  VERTEXAI = "vertexai",
+}
+
+export enum LLMProvider {
+  OPENAI = "openai",
+  ANTHROPIC = "anthropic",
+  MISTRALAI = "mistralai",
+  COHERE = "cohere",
+  // Cloud Providers of LLM systems
+  GOOGLE = "google",
+  AWS = "aws",
+  AZURE = "azure",
 }

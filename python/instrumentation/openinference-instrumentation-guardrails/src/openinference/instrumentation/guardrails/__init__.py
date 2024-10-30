@@ -1,8 +1,13 @@
 import contextvars
 import logging
-from importlib import import_module
-from typing import Any, Collection
+from importlib import import_module, metadata
+from typing import Any, Collection, Tuple, cast
 
+from opentelemetry import trace as trace_api
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from wrapt import ObjectProxy, wrap_function_wrapper
+
+import guardrails as gd
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.guardrails._wrap_guard_call import (
     _ParseCallableWrapper,
@@ -10,11 +15,6 @@ from openinference.instrumentation.guardrails._wrap_guard_call import (
     _PromptCallableWrapper,
 )
 from openinference.instrumentation.guardrails.version import __version__
-from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import ObjectProxy, wrap_function_wrapper
-
-import guardrails as gd
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,11 @@ _instruments = ("guardrails-ai >= 0.4.5",)
 _VALIDATION_MODULE = "guardrails.validator_service"
 _LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
 _RUNNER_MODULE = "guardrails.run"
+
+GUARDRAILS_VERSION = cast(
+    Tuple[int, int, int],
+    tuple(map(int, metadata.version("guardrails-ai").split(".")[:3])),
+)
 
 
 class _Contextvars(ObjectProxy):  # type: ignore
@@ -48,6 +53,10 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        if GUARDRAILS_VERSION >= (0, 5, 2):
+            logger.info("Guardrails version >= 0.5.2 detected, skipping instrumentation")
+            return
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):

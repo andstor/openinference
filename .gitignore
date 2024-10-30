@@ -10,7 +10,6 @@ sdist
 **/.ipynb_checkpoints/
 **/.DS_Store
 .pnpm-store
-.npmrc
 
 # Data files
 *.csv
@@ -30,3 +29,6 @@ assertion.log
 
 # Environment variable files
 .envs
+
+# Git branches
+.git-branches.toml

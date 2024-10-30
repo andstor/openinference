@@ -27,7 +27,7 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
-  "openinference-instrumentation>=0.1.12",
+  "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions",
   "wrapt",
   "typing-extensions",
@@ -35,14 +35,14 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "dspy-ai >= 2.3.4",
+  "dspy-ai >= 2.5.0",
 ]
 test = [
-  "dspy-ai==2.3.4",
+  "dspy-ai==2.5.0",
   "google-generativeai",
   "opentelemetry-sdk",
-  "responses",
-  "respx==0.20.2",
+  "pytest-recording",
+  "litellm",
 ]
 
 [project.urls]
@@ -62,6 +62,9 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = [
+  "tests",
+]
 
 [tool.mypy]
 strict = true

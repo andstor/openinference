@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.0.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.1...python-openinference-instrumentation-llama-index-v3.0.2) (2024-09-06)
+
+
+### Bug Fixes
+
+* Don't check length when converting ToolMetadata to OpenAI format ([#1004](https://github.com/Arize-ai/openinference/issues/1004)) ([47e9c77](https://github.com/Arize-ai/openinference/commit/47e9c779c9ccc464faa30c2ad3637028cfe6cc80))
+
+## [3.0.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v3.0.0...python-openinference-instrumentation-llama-index-v3.0.1) (2024-09-05)
+
+
+### Bug Fixes
+
+* **llama-index:** ensure llamaindex response models are serializable ([#997](https://github.com/Arize-ai/openinference/issues/997)) ([c1cb203](https://github.com/Arize-ai/openinference/commit/c1cb203f1230d9aa3557736deb7b7f6fe310acca))
+
+## [3.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.4...python-openinference-instrumentation-llama-index-v3.0.0) (2024-08-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* support pydanticV2 for llama-index 0.11 ([#971](https://github.com/Arize-ai/openinference/issues/971))
+
+### Features
+
+* support pydanticV2 for llama-index 0.11 ([#971](https://github.com/Arize-ai/openinference/issues/971)) ([ba203b8](https://github.com/Arize-ai/openinference/commit/ba203b8bb16c73113c273516d0a4bf7b0d553bf1))
+
 ## [2.2.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v2.2.3...python-openinference-instrumentation-llama-index-v2.2.4) (2024-08-10)
 
 

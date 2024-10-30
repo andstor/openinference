@@ -20,9 +20,16 @@ from typing import (
     Union,
     cast,
 )
+from urllib.parse import urljoin
 
 import pytest
 from httpx import AsyncByteStream, Response
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util.types import AttributeValue
+from respx import MockRouter
+
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import (
@@ -30,16 +37,13 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util.types import AttributeValue
-from respx import MockRouter
 
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):
@@ -47,13 +51,24 @@ for name, logger in logging.root.manager.loggerDict.items():
         logger.handlers.clear()
         logger.addHandler(logging.StreamHandler())
 
+_OPENAI_BASE_URL = "https://api.openai.com/v1/"
+_AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
 
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        pytest.param(_OPENAI_BASE_URL, id="openai-base-url"),
+        pytest.param(_AZURE_BASE_URL, id="azure-base-url"),
+    ),
+)
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_raw", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_chat_completions(
+    base_url: str,
     is_async: bool,
     is_raw: bool,
     is_stream: bool,
@@ -82,7 +97,7 @@ def test_chat_completions(
         "temperature": random.random(),
         "n": len(output_messages),
     }
-    url = "https://api.openai.com/v1/chat/completions"
+    url = urljoin(base_url, "chat/completions")
     respx_kwargs: Dict[str, Any] = {
         **(
             {"stream": MockAsyncByteStream(chat_completion_mock_stream[0])}
@@ -103,9 +118,9 @@ def test_chat_completions(
     create_kwargs = {"messages": input_messages, **invocation_parameters}
     openai = import_module("openai")
     completions = (
-        openai.AsyncOpenAI(api_key="sk-").chat.completions
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).chat.completions
         if is_async
-        else openai.OpenAI(api_key="sk-").chat.completions
+        else openai.OpenAI(api_key="sk-", base_url=base_url).chat.completions
     )
     create = completions.with_raw_response.create if is_raw else completions.create
 
@@ -175,6 +190,10 @@ def test_chat_completions(
         assert event.name == "exception"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == (
+        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
+    )
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
@@ -220,12 +239,20 @@ def test_chat_completions(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        pytest.param(_OPENAI_BASE_URL, id="openai-base-url"),
+        pytest.param(_AZURE_BASE_URL, id="azure-base-url"),
+    ),
+)
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_raw", [False, True])
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_completions(
+    base_url: str,
     is_async: bool,
     is_raw: bool,
     is_stream: bool,
@@ -252,7 +279,7 @@ def test_completions(
         "temperature": random.random(),
         "n": len(output_texts),
     }
-    url = "https://api.openai.com/v1/completions"
+    url = urljoin(base_url, "completions")
     respx_kwargs: Dict[str, Any] = {
         **(
             {"stream": MockAsyncByteStream(completion_mock_stream[0])}
@@ -273,9 +300,9 @@ def test_completions(
     create_kwargs = {"prompt": prompt, **invocation_parameters}
     openai = import_module("openai")
     completions = (
-        openai.AsyncOpenAI(api_key="sk-").completions
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).completions
         if is_async
-        else openai.OpenAI(api_key="sk-").completions
+        else openai.OpenAI(api_key="sk-", base_url=base_url).completions
     )
     create = completions.with_raw_response.create if is_raw else completions.create
 
@@ -330,6 +357,10 @@ def test_completions(
         assert event.name == "exception"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == (
+        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
+    )
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
@@ -364,12 +395,20 @@ def test_completions(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        pytest.param(_OPENAI_BASE_URL, id="openai-base-url"),
+        pytest.param(_AZURE_BASE_URL, id="azure-base-url"),
+    ),
+)
 @pytest.mark.parametrize("is_async", [False, True])
 @pytest.mark.parametrize("is_raw", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("encoding_format", ["float", "base64"])
 @pytest.mark.parametrize("input_text", ["hello", ["hello", "world"]])
 def test_embeddings(
+    base_url: str,
     is_async: bool,
     is_raw: bool,
     encoding_format: str,
@@ -389,7 +428,7 @@ def test_embeddings(
         "total_tokens": random.randint(10, 100),
     }
     output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)), ((2.0, 3.0), (2.0, 3.0))]
-    url = "https://api.openai.com/v1/embeddings"
+    url = urljoin(base_url, "embeddings")
     respx_mock.post(url).mock(
         return_value=Response(
             status_code=status_code,
@@ -407,9 +446,9 @@ def test_embeddings(
     create_kwargs = {"input": input_text, **invocation_parameters}
     openai = import_module("openai")
     completions = (
-        openai.AsyncOpenAI(api_key="sk-").embeddings
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).embeddings
         if is_async
-        else openai.OpenAI(api_key="sk-").embeddings
+        else openai.OpenAI(api_key="sk-", base_url=base_url).embeddings
     )
     create = completions.with_raw_response.create if is_raw else completions.create
     with suppress(openai.BadRequestError):
@@ -441,6 +480,10 @@ def test_embeddings(
     assert (
         attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
     )
+    assert attributes.pop(LLM_PROVIDER, None) == (
+        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
+    )
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
         json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
@@ -575,6 +618,8 @@ def test_chat_completions_with_multiple_message_contents(
         assert event.name == "exception"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
@@ -688,6 +733,8 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     if hide_inputs:
         assert attributes.pop(INPUT_VALUE, None) == REDACTED_VALUE
     else:
@@ -791,6 +838,8 @@ def test_chat_completions_with_config_hiding_hiding_outputs(
     assert not span.status.description
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(INPUT_MIME_TYPE, None))
@@ -1299,3 +1348,8 @@ SESSION_ID = SpanAttributes.SESSION_ID
 USER_ID = SpanAttributes.USER_ID
 METADATA = SpanAttributes.METADATA
 TAG_TAGS = SpanAttributes.TAG_TAGS
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER_OPENAI = OpenInferenceLLMProviderValues.OPENAI.value
+LLM_PROVIDER_AZURE = OpenInferenceLLMProviderValues.AZURE.value
+LLM_SYSTEM_OPENAI = OpenInferenceLLMSystemValues.OPENAI.value

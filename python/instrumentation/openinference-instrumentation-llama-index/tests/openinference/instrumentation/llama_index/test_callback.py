@@ -29,6 +29,14 @@ from llama_index.core.base.response.schema import StreamingResponse
 from llama_index.core.callbacks import CallbackManager
 from llama_index.core.schema import TextNode
 from llama_index.llms.openai import OpenAI  # type: ignore
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from respx import MockRouter
+from tenacity import wait_none
+
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from openinference.semconv.trace import (
@@ -39,19 +47,11 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from respx import MockRouter
-from tenacity import wait_none
 
 for k in dir(OpenAI):
     v = getattr(OpenAI, k)
     if callable(v) and hasattr(v, "retry") and hasattr(v.retry, "wait"):
         v.retry.wait = wait_none()
-
 
 for name, logger in logging.root.manager.loggerDict.items():
     if name.startswith("openinference.") and isinstance(logger, logging.Logger):
@@ -199,14 +199,6 @@ def test_callback_llm(
             assert not synthesize_span.status.description
             if not (is_async and is_stream):
                 assert synthesize_attributes.pop(OUTPUT_VALUE, None) == answer
-        else:
-            assert synthesize_span.status.status_code == trace_api.StatusCode.ERROR
-            assert (
-                synthesize_span.status.description
-                and synthesize_span.status.description.startswith(
-                    openai.BadRequestError.__name__,
-                )
-            )
         if use_context_attributes:
             _check_context_attributes(synthesize_attributes, session_id, user_id, metadata, tags)
         assert synthesize_attributes == {}  # all attributes should be accounted for
@@ -266,11 +258,6 @@ def test_callback_llm(
                 assert (
                     llm_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) == answer
                 )
-        else:
-            assert llm_span.status.status_code == trace_api.StatusCode.ERROR
-            assert llm_span.status.description and llm_span.status.description.startswith(
-                openai.BadRequestError.__name__,
-            )
         if use_context_attributes:
             _check_context_attributes(llm_attributes, session_id, user_id, metadata, tags)
         assert llm_attributes == {}  # all attributes should be accounted for

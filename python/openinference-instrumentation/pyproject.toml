@@ -26,12 +26,12 @@ classifiers = [
 ]
 dependencies = [
   "opentelemetry-api",
+  "opentelemetry-sdk",
   "openinference-semantic-conventions>=0.1.6",
 ]
 
 [project.optional-dependencies]
 test = [
-  "opentelemetry-sdk",
 ]
 
 [project.urls]
@@ -52,6 +52,12 @@ only-packages = true
 packages = ["src/openinference"]
 exclude = [
   "src/openinference/instrumentation/*/*",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+  "tests",
 ]
 
 [tool.mypy]

@@ -23,6 +23,14 @@ from typing import (
 
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
+from opentelemetry.trace import Tracer
+from opentelemetry.util.types import AttributeValue
+from wrapt import wrap_function_wrapper
+
 from openinference.instrumentation import (
     OITracer,
     TraceConfig,
@@ -38,13 +46,6 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from opentelemetry.trace import Tracer
-from opentelemetry.util.types import AttributeValue
-from wrapt import wrap_function_wrapper
 
 ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 
@@ -138,12 +139,12 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 response["body"] = BufferedStreamingBody(
                     response["body"]._raw_stream, response["body"]._content_length
                 )
-                if raw_request_body := kwargs.get("body"):
-                    request_body = json.loads(raw_request_body)
+                raw_request_body = kwargs["body"]
+                request_body = json.loads(raw_request_body)
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
 
-                prompt = request_body.pop("prompt")
+                prompt = request_body.pop("prompt", None)
                 invocation_parameters = safe_json_dumps(request_body)
                 _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
                 _set_span_attribute(

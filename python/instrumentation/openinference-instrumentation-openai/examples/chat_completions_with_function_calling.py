@@ -1,13 +1,13 @@
 import openai
 from openai.types.chat import (
-    ChatCompletionAssistantMessageParam,
-    ChatCompletionMessageToolCallParam,
     ChatCompletionToolMessageParam,
+    ChatCompletionUserMessageParam,
 )
-from openinference.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from openinference.instrumentation.openai import OpenAIInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
@@ -19,6 +19,12 @@ OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 if __name__ == "__main__":
     client = openai.OpenAI()
+    messages = [
+        ChatCompletionUserMessageParam(
+            role="user",
+            content="What's the weather like in San Francisco?",
+        )
+    ]
     response = client.chat.completions.create(
         model="gpt-4",
         tools=[
@@ -40,33 +46,16 @@ if __name__ == "__main__":
                 },
             },
         ],
-        messages=[
-            {
-                "role": "user",
-                "content": "What's the weather like in San Francisco?",
-            },
-        ],
+        messages=messages,
     )
     message = response.choices[0].message
     assert (tool_calls := message.tool_calls)
     tool_call_id = tool_calls[0].id
+    messages.append(message)
+    messages.append(
+        ChatCompletionToolMessageParam(content="sunny", role="tool", tool_call_id=tool_call_id),
+    )
     client.chat.completions.create(
         model="gpt-4",
-        messages=[
-            {"content": "What's the weather like in San Francisco?", "role": "user"},
-            ChatCompletionAssistantMessageParam(
-                role="assistant",
-                content="",
-                tool_calls=[
-                    ChatCompletionMessageToolCallParam(
-                        id=tool_call_id,
-                        function={"name": "get_weather", "arguments": '{"city": "San Francisco"}'},
-                        type="function",
-                    ),
-                ],
-            ),
-            ChatCompletionToolMessageParam(
-                content='{"weather_category": "sunny"}', role="tool", tool_call_id=tool_call_id
-            ),
-        ],
+        messages=messages,
     )

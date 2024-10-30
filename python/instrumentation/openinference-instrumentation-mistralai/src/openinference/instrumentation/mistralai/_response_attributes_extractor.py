@@ -8,15 +8,16 @@ from typing import (
     Tuple,
 )
 
+from opentelemetry.util.types import AttributeValue
+
 from openinference.semconv.trace import (
     MessageAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry.util.types import AttributeValue
 
 if TYPE_CHECKING:
-    from mistralai.models.chat_completion import ChatCompletionResponse
+    from mistralai.models import ChatCompletionResponse
 
 __all__ = ("_ResponseAttributesExtractor",)
 
@@ -41,6 +42,32 @@ def _get_attributes_from_chat_completion_response(
     if usage := getattr(response, "usage", None):
         yield from _get_attributes_from_completion_usage(usage)
     if (choices := getattr(response, "choices", None)) and isinstance(choices, Iterable):
+        for choice in choices:
+            if (index := _get_attribute_or_value(choice, "index")) is None:
+                continue
+            if message := _get_attribute_or_value(choice, "message"):
+                for key, value in _get_attributes_from_chat_completion_message(message):
+                    yield f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{key}", value
+
+
+class _StreamResponseAttributesExtractor:
+    def get_attributes_from_response(
+        self,
+        response: Any,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield from _get_attributes_from_stream_chat_completion_response(response)
+
+
+def _get_attributes_from_stream_chat_completion_response(
+    response: Any,
+) -> Iterator[Tuple[str, AttributeValue]]:
+    data = response.data
+    if model := data.get("model", None):
+        yield SpanAttributes.LLM_MODEL_NAME, model
+    if usage := data.get("usage", None):
+        yield from _get_attributes_from_completion_usage(usage)
+    if (choices := data.get("choices", None)) and isinstance(choices, Iterable):
         for choice in choices:
             if (index := _get_attribute_or_value(choice, "index")) is None:
                 continue

@@ -23,17 +23,6 @@ from typing import (
 )
 from uuid import uuid4
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    EmbeddingAttributes,
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    RerankerAttributes,
-    SpanAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -48,6 +37,17 @@ from llama_index.core.callbacks.base_handler import BaseCallbackHandler
 from llama_index.core.callbacks.schema import BASE_TRACE_EVENT
 from llama_index.core.llms import ChatMessage, ChatResponse
 from llama_index.core.tools import ToolMetadata
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    RerankerAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -162,7 +162,9 @@ def payload_to_semantic_attributes(
         tool_metadata = cast(ToolMetadata, payload.get(EventPayload.TOOL))
         attributes[TOOL_NAME] = tool_metadata.name
         attributes[TOOL_DESCRIPTION] = tool_metadata.description
-        if tool_parameters := tool_metadata.to_openai_tool()["function"]["parameters"]:
+        if tool_parameters := tool_metadata.to_openai_tool(skip_length_check=True)["function"][
+            "parameters"
+        ]:
             attributes[TOOL_PARAMETERS] = safe_json_dumps(tool_parameters)
     if EventPayload.SERIALIZED in payload:
         serialized = payload[EventPayload.SERIALIZED]

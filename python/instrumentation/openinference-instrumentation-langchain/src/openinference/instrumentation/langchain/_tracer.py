@@ -31,6 +31,14 @@ import wrapt  # type: ignore
 from langchain_core.messages import BaseMessage
 from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
+from wrapt import ObjectProxy
+
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
@@ -44,12 +52,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -113,10 +115,10 @@ class OpenInferenceTracer(BaseTracer):
             assert self.run_map
         self.run_map = _DictWithLock[str, Run](self.run_map)
         self._tracer = tracer
-        self._spans_by_run: Dict[UUID, trace_api.Span] = _DictWithLock[UUID, trace_api.Span]()
+        self._spans_by_run: Dict[UUID, Span] = _DictWithLock[UUID, Span]()
         self._lock = RLock()  # handlers may be run in a thread by langchain
 
-    def get_span(self, run_id: UUID) -> Optional[trace_api.Span]:
+    def get_span(self, run_id: UUID) -> Optional[Span]:
         return self._spans_by_run.get(run_id)
 
     @audit_timing  # type: ignore
@@ -139,6 +141,7 @@ class OpenInferenceTracer(BaseTracer):
             context=parent_context,
             start_time=start_time_utc_nano,
         )
+
         # The following line of code is commented out to serve as a reminder that in a system
         # of callbacks, attaching the context can be hazardous because there is no guarantee
         # that the context will be detached. An error could happen between callbacks leaving
@@ -206,7 +209,7 @@ class OpenInferenceTracer(BaseTracer):
 
 
 @audit_timing  # type: ignore
-def _record_exception(span: trace_api.Span, error: BaseException) -> None:
+def _record_exception(span: Span, error: BaseException) -> None:
     if isinstance(error, Exception):
         span.record_exception(error)
         return
@@ -228,7 +231,7 @@ def _record_exception(span: trace_api.Span, error: BaseException) -> None:
 
 
 @audit_timing  # type: ignore
-def _update_span(span: trace_api.Span, run: Run) -> None:
+def _update_span(span: Span, run: Run) -> None:
     if run.error is None:
         span.set_status(trace_api.StatusCode.OK)
     else:

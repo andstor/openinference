@@ -10,18 +10,21 @@
         "dspy",
         "instrumentator",
         "Instrumentor",
+        "instrumentors",
         "langchain",
+        "litellm",
         "llms",
+        "mistralai",
         "nextjs",
         "openinference",
         "otel",
         "OTLP",
+        "SEMRESATTRS",
         "Streamlit",
         "uninstrument",
         "unsuppress",
+        "vertexai",
         "weaviate"
     ],
-    "flagWords": [
-        "hte"
-    ]
+    "flagWords": ["hte"]
 }

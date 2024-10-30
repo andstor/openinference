@@ -1,5 +1,55 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 1.0.0
+
+### Major Changes
+
+- c03a5b6: add support for trace config to OpenAI and LangChain auto instrumentors to allow for attribute masking on spans
+
+## 0.6.0
+
+### Minor Changes
+
+- f965410: Add system and provider attributes to openai spans
+
+### Patch Changes
+
+- Updated dependencies [f965410]
+- Updated dependencies [712b9da]
+- Updated dependencies [d200d85]
+  - @arizeai/openinference-semantic-conventions@0.11.0
+  - @arizeai/openinference-core@0.3.0
+
+## 0.5.0
+
+### Minor Changes
+
+- 32968be: Add tool call schema to openAI instrumentation
+
+### Patch Changes
+
+- Updated dependencies [3b8702a]
+  - @arizeai/openinference-core@0.2.0
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [ba142d5]
+  - @arizeai/openinference-semantic-conventions@0.10.0
+
+## 0.4.0
+
+### Minor Changes
+
+- 5381ec9: capture images in request
+
+### Patch Changes
+
+- Updated dependencies [28a4ea2]
+- Updated dependencies [96af3d6]
+  - @arizeai/openinference-semantic-conventions@0.9.0
+
 ## 0.3.4
 
 ### Patch Changes

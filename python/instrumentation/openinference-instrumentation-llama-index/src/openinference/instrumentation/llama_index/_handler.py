@@ -28,26 +28,11 @@ from typing import (
     Union,
 )
 
-from openinference.instrumentation import (
-    get_attributes_from_context,
-    safe_json_dumps,
-)
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    EmbeddingAttributes,
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    RerankerAttributes,
-    SpanAttributes,
-    ToolCallAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, attach, detach
 from opentelemetry.trace import Span, Status, StatusCode, Tracer, set_span_in_context
 from opentelemetry.util.types import AttributeValue
+from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
@@ -123,6 +108,23 @@ from llama_index.core.multi_modal_llms import MultiModalLLM
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryType
 from llama_index.core.tools import BaseTool
 from llama_index.core.types import RESPONSE_TEXT_TYPE
+from llama_index.core.workflow.errors import WorkflowDone
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    safe_json_dumps,
+)
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    RerankerAttributes,
+    SpanAttributes,
+    ToolCallAttributes,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -154,11 +156,7 @@ class _StreamingStatus(Enum):
     IN_PROGRESS = auto()
 
 
-class _Span(
-    BaseSpan,
-    extra="allow",
-    keep_untouched=(singledispatchmethod, property),
-):
+class _Span(BaseSpan):
     _otel_span: Span = PrivateAttr()
     _attributes: Dict[str, AttributeValue] = PrivateAttr()
     _active: bool = PrivateAttr()
@@ -166,8 +164,8 @@ class _Span(
     _parent: Optional["_Span"] = PrivateAttr()
     _first_token_timestamp: Optional[int] = PrivateAttr()
 
-    end_time: Optional[int] = PrivateAttr()
-    last_updated_at: float = PrivateAttr()
+    _end_time: Optional[int] = PrivateAttr()
+    _last_updated_at: float = PrivateAttr()
 
     def __init__(
         self,
@@ -183,8 +181,8 @@ class _Span(
         self._parent = parent
         self._first_token_timestamp = None
         self._attributes = {}
-        self.end_time = None
-        self.last_updated_at = time()
+        self._end_time = None
+        self._last_updated_at = time()
 
     def __setitem__(self, key: str, value: AttributeValue) -> None:
         self._attributes[key] = value
@@ -207,11 +205,11 @@ class _Span(
         self[OPENINFERENCE_SPAN_KIND] = self._span_kind or CHAIN
         self._otel_span.set_status(status=status)
         self._otel_span.set_attributes(self._attributes)
-        self._otel_span.end(end_time=self.end_time)
+        self._otel_span.end(end_time=self._end_time)
 
     @property
     def waiting_for_streaming(self) -> bool:
-        return self._active and bool(self.end_time)
+        return self._active and bool(self._end_time)
 
     @property
     def active(self) -> bool:
@@ -247,8 +245,9 @@ class _Span(
         if isinstance(result, (str, SupportsFloat, bool)):
             self[OUTPUT_VALUE] = str(result)
         elif isinstance(result, BaseModel):
+            _ensure_result_model_is_serializable(result)
             try:
-                self[OUTPUT_VALUE] = result.json(exclude_unset=True, encoder=_encoder)
+                self[OUTPUT_VALUE] = result.model_dump_json(exclude_unset=True)
                 self[OUTPUT_MIME_TYPE] = JSON
             except BaseException as e:
                 logger.exception(str(e))
@@ -301,7 +300,7 @@ class _Span(
                 timestamp = time_ns()
                 self._otel_span.add_event("First Token Stream Event", timestamp=timestamp)
                 self._first_token_timestamp = timestamp
-            self.last_updated_at = time()
+            self._last_updated_at = time()
             self.notify_parent(_StreamingStatus.IN_PROGRESS)
         elif isinstance(event, ExceptionEvent):
             self.end(event.exception)
@@ -311,7 +310,7 @@ class _Span(
         if not (parent := self._parent) or not parent.waiting_for_streaming:
             return
         if status is _StreamingStatus.IN_PROGRESS:
-            parent.last_updated_at = time()
+            parent._last_updated_at = time()
         else:
             parent.end()
         parent.notify_parent(status)
@@ -685,7 +684,7 @@ class _ExportQueue:
                 if not span.active:
                     self._del(item)
                     continue
-                if t - span.last_updated_at > 60:
+                if t - span._last_updated_at > 60:
                     span.end()
                     self._del(item)
                     continue
@@ -697,13 +696,13 @@ class _ExportQueue:
 class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
     _context_tokens: Dict[str, object] = PrivateAttr()
     _otel_tracer: Tracer = PrivateAttr()
-    export_queue: _ExportQueue = PrivateAttr()
+    _export_queue: _ExportQueue = PrivateAttr()
 
     def __init__(self, tracer: Tracer) -> None:
         super().__init__()
         self._context_tokens: Dict[str, object] = {}
         self._otel_tracer = tracer
-        self.export_queue = _ExportQueue()
+        self._export_queue = _ExportQueue()
 
     def new_span(
         self,
@@ -759,8 +758,8 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
                 or isinstance(result, AsyncGenerator)
                 and result.ag_frame is not None
             ):
-                span.end_time = time_ns()
-                self.export_queue.put(span)
+                span._end_time = time_ns()
+                self._export_queue.put(span)
                 return span
             span.process_output(instance, result)
             span.end()
@@ -784,14 +783,9 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
         if token:
             detach(token)
         if span:
-            if LLAMA_INDEX_VERSION >= (0, 10, 61):
-                from llama_index.core.workflow.errors import (  # type: ignore[import-not-found,unused-ignore]
-                    WorkflowDone,
-                )
-
-                if err and isinstance(err, WorkflowDone):
-                    span.end()
-                    return span
+            if err and isinstance(err, WorkflowDone):
+                span.end()
+                return span
             span.end(err)
         else:
             logger.warning(f"Open span is missing for {id_=}")
@@ -799,20 +793,20 @@ class _SpanHandler(BaseSpanHandler[_Span], extra="allow"):
 
 
 class EventHandler(BaseEventHandler, extra="allow"):
-    span_handler: _SpanHandler = PrivateAttr()
+    _span_handler: _SpanHandler = PrivateAttr()
 
     def __init__(self, tracer: Tracer) -> None:
         super().__init__()
-        self.span_handler = _SpanHandler(tracer=tracer)
+        self._span_handler = _SpanHandler(tracer=tracer)
 
     def handle(self, event: BaseEvent, **kwargs: Any) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return None
         if not event.span_id:
             return event
-        span = self.span_handler.open_spans.get(event.span_id)
+        span = self._span_handler.open_spans.get(event.span_id)
         if span is None:
-            span = self.span_handler.export_queue.find(event.span_id)
+            span = self._span_handler._export_queue.find(event.span_id)
         if span is None:
             logger.warning(f"Open span is missing for {event.span_id=}, {event.id_=}")
         else:
@@ -962,6 +956,23 @@ def _asdict(obj: Any) -> Any:
             return copy.deepcopy(obj)
         except BaseException:
             return repr(obj)
+
+
+def _ensure_result_model_is_serializable(result: BaseModel) -> None:
+    """
+    Some LlamaIndex result types have a `raw` attribute containing the original
+    result object, e.g., from the OpenAI Python SDK. OpenAI's Pydantic models
+    are configured to defer instantiating model serializers, which can cause
+    serialization of the LlamaIndex result object to fail. This method forces
+    the OpenAI model to instantiate its serializer to avoid this issue.
+
+    For reference, see:
+    - https://github.com/Arize-ai/phoenix/issues/4423
+    - https://github.com/openai/openai-python/issues/1306
+    - https://github.com/pydantic/pydantic/issues/7713
+    """
+    if isinstance(raw := getattr(result, "raw", None), PydanticBaseModel):
+        raw.model_rebuild()
 
 
 T = TypeVar("T", bound=type)
