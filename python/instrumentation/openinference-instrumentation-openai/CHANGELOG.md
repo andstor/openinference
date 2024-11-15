@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.16...python-openinference-instrumentation-openai-v0.1.17) (2024-10-31)
+
+
+### Bug Fixes
+
+* remove httpx dependency ([#1093](https://github.com/Arize-ai/openinference/issues/1093)) ([41c6557](https://github.com/Arize-ai/openinference/commit/41c655708e954aa362adc7f62f1b98324fb30ce9))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.15...python-openinference-instrumentation-openai-v0.1.16) (2024-10-30)
+
+
+### Features
+
+* add tool call id to openai instrumentor ([#1090](https://github.com/Arize-ai/openinference/issues/1090)) ([9bbadd2](https://github.com/Arize-ai/openinference/commit/9bbadd23a371b6adb8378bd6f5cbe1e275241804))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.14...python-openinference-instrumentation-openai-v0.1.15) (2024-10-28)
 
 

@@ -175,13 +175,12 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               },
             },
           );
-
           const execContext = getExecContext(span);
           const execPromise = safeExecuteInTheMiddle<
             ReturnType<ChatCompletionCreateType>
           >(
             () => {
-              return context.with(execContext, () => {
+              return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
               });
             },
@@ -263,7 +262,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             ReturnType<CompletionsCreateType>
           >(
             () => {
-              return context.with(execContext, () => {
+              return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
               });
             },
@@ -335,7 +334,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             ReturnType<EmbeddingsCreateType>
           >(
             () => {
-              return context.with(execContext, () => {
+              return context.with(trace.setSpan(execContext, span), () => {
                 return original.apply(this, args);
               });
             },
@@ -503,15 +502,21 @@ function getChatCompletionInputMessageAttributes(
     case "assistant":
       if (message.tool_calls) {
         message.tool_calls.forEach((toolCall, index) => {
+          const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+
+          // Add the tool call id if it exists
+          if (toolCall.id) {
+            attributes[
+              `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`
+            ] = toolCall.id;
+          }
           // Make sure the tool call has a function
           if (toolCall.function) {
-            const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
             attributes[
-              toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
+              `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
             ] = toolCall.function.name;
             attributes[
-              toolCallIndexPrefix +
-                SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
+              `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
             ] = toolCall.function.arguments;
           }
         });
@@ -521,8 +526,10 @@ function getChatCompletionInputMessageAttributes(
       attributes[SemanticConventions.MESSAGE_FUNCTION_CALL_NAME] = message.name;
       break;
     case "tool":
-      // There's nothing to add for the tool. There is a tool_id, but there are no
-      // semantic conventions for it
+      if (message.tool_call_id) {
+        attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
+          message.tool_call_id;
+      }
       break;
     case "system":
       // There's nothing to add for the system. Content is captured above
@@ -613,6 +620,12 @@ function getChatCompletionOutputMessageAttributes(
   if (message.tool_calls) {
     message.tool_calls.forEach((toolCall, index) => {
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+      // Add the tool call id if it exists
+      if (toolCall.id) {
+        attributes[
+          `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`
+        ] = toolCall.id;
+      }
       // Double check that the tool call has a function
       // NB: OpenAI only supports tool calls with functions right now but this may change
       if (toolCall.function) {
@@ -759,6 +772,12 @@ function getToolAndFunctionCallAttributesFromStreamChunk(
   if (choice.delta.tool_calls) {
     choice.delta.tool_calls.forEach((toolCall, index) => {
       const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
+      // Add the tool call id if it exists
+      if (toolCall.id) {
+        attributes[
+          `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`
+        ] = toolCall.id;
+      }
       // Double check that the tool call has a function
       // NB: OpenAI only supports tool calls with functions right now but this may change
       if (toolCall.function) {
