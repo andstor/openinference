@@ -230,27 +230,24 @@ def _llm_invocation_parameters(
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
 
 
-def _llm_tools(tools_to_call_from: list[Any]) -> Iterator[Tuple[str, Any]]:
-    from smolagents import Tool, __version__
-
-    major_version_string, minor_version_string, *_ = __version__.split(".")
-    major_version = int(major_version_string)
-    minor_version = int(minor_version_string)
-    if (major_version, minor_version) >= (1, 5):
-        from smolagents._function_type_hints_utils import (  # type: ignore[import-untyped]
-            get_json_schema,
-        )
-    else:
-        from smolagents.models import get_json_schema  # type: ignore[import-untyped]
-
-    if not isinstance(tools_to_call_from, list):
-        return
-    for tool_index, tool in enumerate(tools_to_call_from):
-        if isinstance(tool, Tool):
-            yield (
-                f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}",
-                safe_json_dumps(get_json_schema(tool)),
-            )
+def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    if isinstance(prompt := arguments.get("prompt"), str):
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
+    elif isinstance(messages := arguments.get("messages"), list):
+        for i, message in enumerate(messages):
+            if not isinstance(message, dict):
+                continue
+            if (role := message.get("role", None)) is not None:
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}",
+                    role,
+                )
+            if (content := message.get("content", None)) is not None:
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}",
+                    content,
+                )
 
 
 def _tools(tool: "Tool") -> Iterator[Tuple[str, Any]]:
@@ -300,7 +297,6 @@ class _ModelWrapper:
             span.set_attribute(
                 LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
             )
-            span.set_attribute(OUTPUT_VALUE, str(output_message))
             span.set_attributes(dict(_llm_output_messages(output_message)))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
